@@ -49,11 +49,62 @@ def haversine(lat1, lon1, lat2, lon2):  # calculate the haversine distance betwe
 
             return distance
 
+def build_stop_lookup():
 
+        stop_dict = {}
+
+        try:
+            with open('GTFS_Realtime/stops.txt', newline='') as csvfile:
+                stop_reading = csv.DictReader(csvfile)
+
+                for row in stop_reading:
+                    # Use stop_code as the main dictionary key, and store the entire row
+                    stop_dict[row['stop_code']] = row
+
+
+        except FileNotFoundError:
+            print("The file 'stops.txt' was not found.")
+
+        return stop_dict
+
+def get_nearby_vehicles(stop_id, radius_km, stop_dict): # Use CLI to pass stop id and km radius desired and return the number of vehicles within that radius of the stop.
+
+    lat1 = 0
+    lon1 = 0
+
+    if stop_id not in stop_dict:
+        print(f"Stop ID {stop_id} not found,")
+        return
+
+    stop_row = stop_dict[stop_id] # this says, for the variable that will hold the rows of stops, get everything assigned to stop_id, which is the key, from the stop dictionary, remember this.
+
+    lat1 = float(stop_row['stop_lat']) # this says, the lat1 will be taken from the existing row of stop info from stop_row, specifically stop_lat and be stored as a float in the variable. Remember this
+
+    lon1 = float(stop_row['stop_lon'])
+
+    for entity in feed.entity:
+            if entity.HasField('vehicle'): # check if the entity has a vehicle field, if it does, then we can check its position and calculate the distance to the stop.
+                lat2 = entity.vehicle.position.latitude #take the lat and lon of the vehicle from the API and pass it to the haversine formula to calculate distance.
+                lon2 = entity.vehicle.position.longitude
+                near_entities = haversine(lat1, lon1, lat2, lon2) #finally execute the function!
+
+                if near_entities <= radius_km: #check if it's within the desired radius or nah
+                    print(f"Vehicle ID: {entity.vehicle.vehicle.id}, Distance: {near_entities:.2f} km. It is within {radius_km} kms or less of stop {stop_id}!")
+
+                    cur.execute("INSERT INTO bus_data (checked_at, stop_id, vehicle_id, distance_km) VALUES (?, ?, ?, ?)",
+                                (time_checked.strftime("%Y-%m-%d %H:%M:%S"), stop_id, entity.vehicle.vehicle.id, near_entities)) #after every check has passed, insert it to the database with all the info needed!
+
+
+stops_lookup = build_stop_lookup()
+
+radius_km = float(sys.argv[1])
+
+stop_ids = ["8269", "111641", "601221"]   #stops to look for
 while True: #infinite loop to keep checking the API every 60 seconds, until I stop it, to create some persistence.
 
 
     feed = gtfs_realtime_pb2.FeedMessage()
+
 
     try: # make the request to the API and handle potential errors
         response = requests.get(url, headers=headers, timeout=10)
@@ -94,47 +145,11 @@ while True: #infinite loop to keep checking the API every 60 seconds, until I st
     time_checked = datetime.datetime.now() #check time so it can be added into the database, has to be refreshed every time the API is checked, so it has to be inside the while loop.
 
 
+    for stop_id in stop_ids:
+        get_nearby_vehicles(stop_id, radius_km, stops_lookup)
 
-    def get_nearby_vehicles(stop_id, radius_km): # Use CLI to pass stop id and km radius desired and return the number of vehicles within that radius of the stop.
-        lat1 = 0
-        lon1 = 0
-        stop_found = False
+    con.commit() #commit to the db
 
-        try:
-            with open('GTFS_Realtime/stops.txt', newline='') as csvfile:  #read docs of csv.DictReader, then pass the values found to the variables for the formula.
-                Stop_iteration = csv.DictReader(csvfile)
-
-                for row in Stop_iteration:
-                    if row['stop_code'] == stop_id:
-                        lat1 = float(row['stop_lat']) #csv returns strings, so we have to convert them to floats for the haversine formula to work.
-                        lon1 = float(row['stop_lon'])
-                        print(row['stop_code'], row['stop_name'], lat1, lon1) #make sure to print this to know if the stop id is being found correctly.
-                        stop_found = True
-                        break
-        except FileNotFoundError:
-            print("The file 'stops.txt' was not found. Please ensure it exists in the 'GTFS_Realtime' directory.")#make sure the stops exist xd
-            return
-
-        if not stop_found:
-            print(f"Stop ID {stop_id} not found in stops.txt.") #prevent entering non-existen stop ids
-            return
-
-        for entity in feed.entity:
-                if entity.HasField('vehicle'):
-                    lat2 = entity.vehicle.position.latitude #take the lat and lon of the vehicle from the API and pass it to the haversine formula to calculate distance.
-                    lon2 = entity.vehicle.position.longitude
-                    near_entities = haversine(lat1, lon1, lat2, lon2) #finally execute the function!
-
-                    if near_entities <= radius_km: #check if it's within the desired radius or nah
-                        print(f"Vehicle ID: {entity.vehicle.vehicle.id}, Distance: {near_entities:.2f} km. It is within {radius_km} kms or less of stop {stop_id}!")
-
-                        cur.execute("INSERT INTO bus_data (checked_at, stop_id, vehicle_id, distance_km) VALUES (?, ?, ?, ?)",
-                                    (time_checked.strftime("%Y-%m-%d %H:%M:%S"), stop_id, entity.vehicle.vehicle.id, near_entities)) #after every check has passed, insert it to the database with all the info needed!
-
-        con.commit() #commit to the db
-
-
-    result = get_nearby_vehicles(sys.argv[1], float(sys.argv[2])) # pass the stop id and radius in km as command line arguments when running the script, e.g., python fetch.py 12345 1.5
 
     print(time_checked.strftime("%c")) #testing datetime alone
 
