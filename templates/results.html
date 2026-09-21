@@ -1,0 +1,17 @@
+$def with (vehicles, stop_id)
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nearby Vehicles</title>
+  </head>
+  <body>
+    <h2>Vehicles near stop $stop_id</h2>
+
+    <ul>
+      $for v in vehicles:
+      <li>Vehicle $v['vehicle_id']: $('%.2f' % v['distance_km'])</li>
+    </ul>
+  </body>
+</html>

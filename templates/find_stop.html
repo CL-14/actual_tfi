@@ -1,0 +1,38 @@
+$def with (stops, query)
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Find stop by name</title>
+  </head>
+  <body>
+    <h1>Search bus Stops</h1>
+    <form action="/find_stop" method="GET">
+      <label for="stop_name">Enter the Stop Name:</label>
+      <input
+        type="text"
+        id="stop_name"
+        name="stop_name"
+        value="$query"
+        required
+      /><br /><br />
+      <br /><br />
+      <input type="submit" value="Search" />
+    </form>
+
+    $if stops is not None:
+
+    <h2>Search Results for "$query"</h2>
+
+    $if len(stops) == 0:
+      <p>No stops found matching that name. Try again!</p>
+    $else:
+      <ul>
+      $for stop in stops:
+        <li>
+          <strong>$stop.get('stop_name') (Code: $stop.get('stop_code'))</strong>
+        </li>
+      </ul>
+  </body>
+</html>

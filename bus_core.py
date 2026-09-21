@@ -44,6 +44,22 @@ def build_stop_lookup():
 
         return stop_dict
 
+def search_stops_by_name(query,stop_dict):
+
+    stop_list = []
+
+    query = query.strip().lower()
+
+    for stop_data in stop_dict.values():
+
+        stop_name = stop_data.get('stop_name', '')
+
+        if query in stop_name.lower():
+            stop_list.append(stop_data)
+
+    return stop_list
+
+
 def get_nearby_vehicles(stop_id, radius_km, stop_dict, feed): # Use CLI to pass stop id and km radius desired and return the number of vehicles within that radius of the stop.
 
     lat1 = 0
