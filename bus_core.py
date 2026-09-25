@@ -97,7 +97,7 @@ def get_nearby_vehicles(stop_id, radius_km, stop_dict, feed): # Use CLI to pass 
 
     return bus_info_list
 
-
+#Get latest data from the NTA API
 def get_fresh_feed():
     api_key = os.getenv('TFI_API_KEY')
     url = 'https://api.nationaltransport.ie/gtfsr/v2/vehicles'

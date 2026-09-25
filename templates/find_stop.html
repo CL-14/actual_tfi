@@ -24,6 +24,7 @@ $def with (stops, query)
     $if stops is not None:
 
     <h2>Search Results for "$query"</h2>
+    <p>if you click on the results it will show any car close to the stop selected in a 5km radius</p>
 
     $if len(stops) == 0:
       <p>No stops found matching that name. Try again!</p>
@@ -31,7 +32,7 @@ $def with (stops, query)
       <ul>
       $for stop in stops:
         <li>
-          <strong>$stop.get('stop_name') (Code: $stop.get('stop_code'))</strong>
+          <strong><a href="/results?stop_id=$stop.get('stop_code')&radius=5">$stop.get('stop_name') (Code: $stop.get('stop_code'))</a></strong>
         </li>
       </ul>
   </body>
