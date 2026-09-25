@@ -17,16 +17,27 @@ urls = ( #create the urls for the website to access, this is web.py
     '/callback',  'callback'
 )
 
+web.config.debug = False #Must be off for web.session to work correctly - debug mode's auto-reload breaks session initialization (AttributeError: 'ThreadedDict' object has no attribute). Known web.py issue, not a bug in our code.
+
 app = web.application(urls, globals()) #call all the routes for web.py to use when running the app
 render = web.template.render('templates/') # this is to be able to start using templates
 
 #use web.py web session tool to create a session manager to start storing data in the browser during the login stage.
-session = web.session.Session(app, web.session.DiskStore('sessions'), initializer={'logged_in': False, 'user_email': None})
+session = web.session.Session(app, web.session.DiskStore('sessions'), initializer={'logged_in': False, 'user_email': None, 'oauth_state': None})
+# added oauth_state to the session initializer to store the state parameter for CSRF protection during the OAuth flow.
 
 class index: #first class for the main initial page, the form with
     def GET(self):
         web.header('Content-Type', 'text/html; charset=utf-8')
-        return render.index()
+
+        if session.logged_in == False:
+            html = """<h1>You need to login to access this website</h1> <br>
+            <a href="http://localhost:8080/login">Click Here to Login!</a>"""
+
+            return html
+
+        else:
+            return render.index()
 
 class stop_view: # this class is currently not being utilized and is part of previous test, feel free to ignore it
     def GET(self, stop_id):
@@ -84,6 +95,8 @@ class login:
         client_id = os.getenv('AUTH0_CLIENT_ID')
         state = secrets.token_urlsafe(16)
 
+        session.oauth_state = state  # we save it so /callback can verify it later for state verification
+
         auth_url = ( #request to authorize
             f"https://{domain}/authorize?"
             f"response_type=code&"
@@ -100,32 +113,44 @@ class callback:
     def GET(self):
         user_data = web.input()
         code = user_data.code
+        check_state = user_data.state
 
-        domain = os.getenv('AUTH0_DOMAIN')
-        client_id = os.getenv('AUTH0_CLIENT_ID')
-        client_secret = os.getenv('AUTH0_CLIENT_SECRET')
+        if check_state != session.oauth_state: # check if the state parameter matches the one we saved in the session, to prevent CSRF attacks
+            return "Invalid state parameter. Login attempt rejected for security reasons."
+        else:
 
-        token_response = requests.post( #request to receive token from Auth0 servers to be able to eventually access the user data
-            f"https://{domain}/oauth/token",
-            headers={"content-type": "application/x-www-form-urlencoded"},
-            data={
-                "grant_type": "authorization_code",
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "code": code,
-                "redirect_uri": "http://localhost:8080/callback",
-            }
-        )
-        token_data = token_response.json() #make it json for convention
-        access_token = token_data["access_token"] #save it in a dictionary
 
-        userinfo_response = requests.get(
-            f"https://{domain}/userinfo",
-            headers={"Authorization": f"Bearer {access_token}"} #request user info with the token we received for authentication
-        )
-        user_info = userinfo_response.json()
 
-        return f"Logged in as: {user_info.get('email')}"
+            domain = os.getenv('AUTH0_DOMAIN')
+            client_id = os.getenv('AUTH0_CLIENT_ID')
+            client_secret = os.getenv('AUTH0_CLIENT_SECRET')
+
+            token_response = requests.post( #request to receive token from Auth0 servers to be able to eventually access the user data
+                f"https://{domain}/oauth/token",
+                headers={"content-type": "application/x-www-form-urlencoded"},
+                data={
+                    "grant_type": "authorization_code",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "code": code,
+                    "redirect_uri": "http://localhost:8080/callback",
+                }
+            )
+            token_data = token_response.json() #make it json for convention
+            access_token = token_data["access_token"] #save it in a dictionary
+
+            userinfo_response = requests.get(
+                f"https://{domain}/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"} #request user info with the token we received for authentication
+            )
+            user_info = userinfo_response.json()
+
+            session.user_email = user_info.get('email') #set the session to user logged in after receiving the information
+            session.logged_in = True
+
+            return render.index(session.user_email)
+
+
 
 if __name__ == "__main__":
     app.run()

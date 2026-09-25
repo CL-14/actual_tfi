@@ -1,3 +1,4 @@
+$def with (email)
 <!doctype html>
 <html lang="en">
   <head>
@@ -6,6 +7,9 @@
     <title>Where is that ghost bus?</title>
   </head>
   <body>
+    <h1>Welcome back!</h1>
+    <h3>You're logged in as $email</h3>
+
     <form action="/results" method="GET">
       <label for="stop_id">Stop Code:</label>
       <input type="number" id="stop_id" name="stop_id" required /><br /><br />
@@ -22,6 +26,5 @@
 
     <p>Don't know the stop code?</p>
     <a href="/find_stop">Click here to search for a stop by name</a>
-
   </body>
 </html>
